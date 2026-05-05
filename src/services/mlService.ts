@@ -36,22 +36,32 @@ export interface LabeledSample {
 // Train a new classification head on top of the extracted features
 export const trainClassifier = async (
   samples: LabeledSample[],
+  onProgress: (status: string, progress: number) => void,
   onEpochEnd: (epoch: number, logs: tf.Logs) => void
 ) => {
   if (samples.length === 0) throw new Error("No data provided");
 
   // Load extractor if not already loaded
+  onProgress("Loading MobileNetV3...", 0);
   await loadFeatureExtractor();
 
   // 1. Extract features for all samples
   const xsArray: tf.Tensor[] = [];
   const ysArray: number[] = [];
 
-  for (const sample of samples) {
-    const features = await extractFeatures(sample.image);
+  for (let i = 0; i < samples.length; i++) {
+    const features = await extractFeatures(samples[i].image);
     xsArray.push(features);
-    ysArray.push(sample.label);
+    ysArray.push(samples[i].label);
+    
+    // Update progress and yield to main thread to prevent UI freezing
+    if (i % 10 === 0 || i === samples.length - 1) {
+      onProgress("Extracting features...", Math.round((i / samples.length) * 100));
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
   }
+
+  onProgress("Initializing Model...", 0);
 
   // 2. Concatenate tensors into batches
   const xs = tf.concat(xsArray, 0);
@@ -74,15 +84,20 @@ export const trainClassifier = async (
     metrics: ['accuracy']
   });
 
+  const totalEpochs = 25;
+
   // 4. Train the model
   const history = await classifier.fit(xs, ysOneHot, {
-    epochs: 25,
+    epochs: totalEpochs,
     batchSize: Math.min(32, xs.shape[0]),
     validationSplit: 0.2, // Use 20% of data for validation
     shuffle: true,
     callbacks: {
       onEpochEnd: (epoch, logs) => {
+        onProgress("Training...", Math.round(((epoch + 1) / totalEpochs) * 100));
         if (logs) onEpochEnd(epoch, logs);
+        // Yield to ensure UI updates during fast epochs
+        return new Promise(resolve => setTimeout(resolve, 0));
       }
     }
   });
@@ -97,12 +112,16 @@ export const trainClassifier = async (
 };
 
 // Evaluate the model to get Accuracy, Precision, Recall, Confusion Matrix
-export const evaluateModel = async (samples: LabeledSample[]) => {
+export const evaluateModel = async (
+  samples: LabeledSample[], 
+  onProgress?: (status: string, progress: number) => void
+) => {
   if (!classifier) throw new Error("Model is not trained yet.");
 
   let tp = 0, tn = 0, fp = 0, fn = 0;
 
-  for (const sample of samples) {
+  for (let i = 0; i < samples.length; i++) {
+    const sample = samples[i];
     const features = await extractFeatures(sample.image);
     const predictionTensor = classifier.predict(features) as tf.Tensor;
     const predictionData = await predictionTensor.data();
@@ -119,6 +138,11 @@ export const evaluateModel = async (samples: LabeledSample[]) => {
     
     features.dispose();
     predictionTensor.dispose();
+
+    if (onProgress && (i % 10 === 0 || i === samples.length - 1)) {
+      onProgress("Evaluating dataset...", Math.round((i / samples.length) * 100));
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
   }
 
   const accuracy = (tp + tn) / samples.length;

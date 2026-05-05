@@ -28,6 +28,7 @@ export default function MRIWorkstation() {
 
   // Training state
   const [isTraining, setIsTraining] = useState(false);
+  const [trainingStatus, setTrainingStatus] = useState<string>('');
   const [trainingLogs, setTrainingLogs] = useState<{epoch: number, loss: number, accuracy: number, val_loss: number, val_accuracy: number}[]>([]);
   const [trainingProgress, setTrainingProgress] = useState(0);
   const [evaluation, setEvaluation] = useState<{accuracy: number, precision: number, recall: number, confusionMatrix: number[][]} | null>(null);
@@ -80,6 +81,7 @@ export default function MRIWorkstation() {
     setTrainingLogs([]);
     setEvaluation(null);
     setTrainingProgress(0);
+    setTrainingStatus("Initializing...");
 
     try {
       // 1. Prepare data
@@ -90,20 +92,29 @@ export default function MRIWorkstation() {
       }
 
       // 2. Train Model
-      await trainClassifier(samples, (epoch, logs) => {
-        setTrainingProgress(Math.round(((epoch + 1) / 25) * 100)); // Assuming 25 epochs
-        setTrainingLogs(prev => [...prev, {
-          epoch: epoch + 1,
-          loss: logs.loss || 0,
-          accuracy: logs.acc || 0,
-          val_loss: logs.val_loss || 0,
-          val_accuracy: logs.val_acc || 0
-        }]);
-      });
+      await trainClassifier(
+        samples, 
+        (status, progress) => {
+          setTrainingStatus(status);
+          setTrainingProgress(progress);
+        },
+        (epoch, logs) => {
+          setTrainingLogs(prev => [...prev, {
+            epoch: epoch + 1,
+            loss: logs.loss || 0,
+            accuracy: logs.acc || 0,
+            val_loss: logs.val_loss || 0,
+            val_accuracy: logs.val_acc || 0
+          }]);
+        }
+      );
 
       // 3. Evaluate Model on training set (in a real scenario we'd split a separate test set)
       // For this prototype, we'll evaluate on the same set or a validation set
-      const evalMetrics = await evaluateModel(samples);
+      const evalMetrics = await evaluateModel(samples, (status, progress) => {
+        setTrainingStatus(status);
+        setTrainingProgress(progress);
+      });
       setEvaluation({
         accuracy: evalMetrics.accuracy,
         precision: evalMetrics.precision,
@@ -290,7 +301,7 @@ export default function MRIWorkstation() {
                         }`}
                       >
                         {isTraining ? <Activity className="w-5 h-5 animate-spin" /> : <PlayCircle className="w-5 h-5" />}
-                        {isTraining ? `Training (${trainingProgress}%)` : `Initialize Training Loop`}
+                        {isTraining ? `${trainingStatus} (${trainingProgress}%)` : `Initialize Training Loop`}
                       </button>
                     </div>
                   </div>
