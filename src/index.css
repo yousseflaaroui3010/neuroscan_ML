@@ -1,0 +1,22 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+body {
+  background-color: #f5f6f8;
+  color: #1a1b1e;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom dashed border for upload zone */
+.dash-border {
+  border: 2px dashed #d1d5db;
+}
+.dash-border.active {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+}

@@ -1,0 +1,6 @@
+{
+  "name": "NeuroScan Prototype",
+  "description": "A web-based prototype for Brain Tumor MRI classification using an AI model to detect tumors and flag uncertain cases for clinical review.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
